@@ -4,17 +4,20 @@ import torch
 from collections import namedtuple
 import torch_blocksparse
 import sys
+import random
 
 class SparsityConfig:
+    Modes = ['dense', 'fixed', 'bigbird']
     def __init__(self,
             mode = 'fixed',
             block = 16,
             stride = 64,
             attention = 'unidirectional',
             numverts = 1,
-            vertsize = 1):
-        if mode != 'dense' and mode != 'fixed':
-            raise NotImplementedError('only \"dense\" and \"fixed\" modes are supported for now')
+            vertsize = 1,
+            rndblocks = 1):
+        if not mode in SparsityConfig.Modes:
+            raise NotImplementedError(f'only supported modes are: {SparsityConfig.Modes}')
         self.mode = mode
         self.block = block
         self.stride = stride
@@ -23,14 +26,13 @@ class SparsityConfig:
         self.attention = attention
         self.numverts = numverts
         self.vertsize = vertsize
+        self.rndblocks = rndblocks
 
 
 class DeepSpeedSparseSelfAttention(nn.Module):
 
-    # Make binary block-sparsity layout from given parameters
-    # contribution of Arash Ashari (Microsoft Research)
     @staticmethod
-    def _set_s1_layout(layout, h, num_blocks, block_stride, attention):
+    def _set_local_fixed_layout(layout, h, num_blocks, block_stride, attention):
         for i in range(0, num_blocks, block_stride):
             for j in range(i, i + block_stride):
                 for k in range(i, (j + 1 if attention == 'unidirectional' else i + block_stride)):
@@ -38,7 +40,7 @@ class DeepSpeedSparseSelfAttention(nn.Module):
         return layout
 
     @staticmethod
-    def _set_s2_layout(layout, h, num_blocks, block_stride, attention, numverts, vertsize):
+    def _set_global_fixed_layout(layout, h, num_blocks, block_stride, attention, numverts, vertsize):
         start = block_stride - (1 + h % numverts) * vertsize
         for i in range(0, num_blocks):
             end = i if attention == 'unidirectional' else num_blocks
@@ -48,7 +50,37 @@ class DeepSpeedSparseSelfAttention(nn.Module):
         return layout
 
     @staticmethod
-    def _make_layout(num_heads, num_blocks, mode, block_stride, attention, numverts, vertsize):
+    def _set_layout_bigbird_rnd(layout, h, num_blocks, num_rnd_blocks):
+        for row in range(0, num_blocks):
+            rnd_cols = random.sample(range(0, num_blocks), num_rnd_blocks)
+            layout[h, row, rnd_cols] = 1
+        return layout
+
+    @staticmethod
+    def _set_layout_bigbird_sliding_window(layout, h, num_blocks, num_window_blocks):
+        w = num_window_blocks // 2
+        for row in range(0, num_blocks):
+            start = max(0, row - w)
+            end = min(row + w + 1, num_blocks)
+            layout[h, row, start:end] = 1
+        return layout
+
+    @staticmethod
+    def _set_layout_bigbird_global_itc(layout, h, num_blocks, num_global_blocks):
+        #global rows
+        layout[h, 0:num_global_blocks, :] = 1
+
+        #global columns 
+        layout[h, :, 0:num_global_blocks] = 1
+        return layout
+
+    @staticmethod
+    def _make_layout_dense(num_heads, num_blocks, block_stride, attention, numverts, vertsize, rndblocks, different_layout_per_head = False):
+        layout = torch.ones((num_heads, num_blocks, num_blocks), dtype=torch.int64)
+        return layout
+
+    @staticmethod
+    def _make_layout_fixed(num_heads, num_blocks, block_stride, attention, numverts, vertsize, rndblocks, different_layout_per_head = True):
         if (block_stride / vertsize) != (block_stride // vertsize):
                 raise ValueError(f'Number of blocks in a stride window {block_stride} must be dividable by vertical block size {vertsize}')
         
@@ -56,15 +88,50 @@ class DeepSpeedSparseSelfAttention(nn.Module):
                 raise ValueError(f'Number of layout versions {num_verts} cannot be larger than blocks in a stride window divided by vertical block size {block_stride} / {vertsize} = {block_stride/vertsize}')
 
         layout = torch.zeros((num_heads, num_blocks, num_blocks), dtype=torch.int64)
-        if mode == "dense":
-            layout[:, :, :] = 1
-        elif mode == "fixed":
-            for i in range(0, num_heads):
-                layout = DeepSpeedSparseSelfAttention._set_s1_layout(layout, i, num_blocks, block_stride, attention)
-                layout = DeepSpeedSparseSelfAttention._set_s2_layout(layout, i, num_blocks, block_stride, attention, numverts, vertsize)
+        heads = num_heads if different_layout_per_head else 1
+        for i in range(0, heads):
+            layout = DeepSpeedSparseSelfAttention._set_local_fixed_layout(layout, i, num_blocks, block_stride, attention)
+            layout = DeepSpeedSparseSelfAttention._set_global_fixed_layout(layout, i, num_blocks, block_stride, attention, numverts, vertsize)
+
+        if not different_layout_per_head:
+            layout[1:num_heads, :, :] = layout[0, :, :]
+        return layout
+
+    @staticmethod
+    def _make_layout_bigbird(num_heads, num_blocks, num_window_blocks, attention, numverts, num_global_blocks, num_rnd_blocks, different_layout_per_head = False):
+        if (num_rnd_blocks > num_blocks):
+            raise ValueError(f'Number of random blocks must be <= number of blocks in a row; {num_rnd_blocks} <= {num_blocks}')
+        if (num_window_blocks > num_blocks):
+            raise ValueError(f'Number of blocks in sliding window must be <= number of blocks in a row; {num_window_blocks} <= {num_blocks}')
+        if (num_global_blocks > num_blocks):
+            raise ValueError(f'Number of global blocks must be <= number of blocks in a row; {num_global_blocks} <= {num_blocks}')
+
+        layout = torch.zeros((num_heads, num_blocks, num_blocks), dtype=torch.int64)
+        heads = num_heads if different_layout_per_head else 1
+
+        for h in range(0, heads):
+            layout = DeepSpeedSparseSelfAttention._set_layout_bigbird_rnd(layout, h, num_blocks, num_rnd_blocks)
+            layout = DeepSpeedSparseSelfAttention._set_layout_bigbird_sliding_window(layout, h, num_blocks, num_global_blocks)
+            layout = DeepSpeedSparseSelfAttention._set_layout_bigbird_global_itc(layout, h, num_blocks, num_global_blocks)
+
+        if not different_layout_per_head:
+            layout[1:num_heads, :, :] = layout[0, :, :]
         return layout
 
     ops = dict()
+
+    layoutCreators = {
+        "dense": _make_layout_dense.__func__,
+        "fixed": _make_layout_fixed.__func__,
+        "bigbird": _make_layout_bigbird.__func__
+    }
+
+    @staticmethod
+    def _make_layout(num_heads, num_blocks, mode, block_stride, attention, numverts, vertsize, rndblocks, different_layout_per_head = True):
+        if not mode in SparsityConfig.Modes:
+            raise NotImplementedError(f'only supported modes are: {SparsityConfig.Modes}')
+        layout = DeepSpeedSparseSelfAttention.layoutCreators[mode](num_heads, num_blocks, block_stride, attention, numverts, vertsize, rndblocks, different_layout_per_head)
+        return layout
 
     # add to cache
     def get_ops(self, H, L):
@@ -86,7 +153,8 @@ class DeepSpeedSparseSelfAttention(nn.Module):
                     block_stride,
                     spConfig.attention,
                     spConfig.numverts, 
-                    spConfig.vertsize)
+                    spConfig.vertsize,
+                    spConfig.rndblocks)
 
             sparse_dot_sdd_nt = torch_blocksparse.MatMul(layout,
                     spConfig.block,
