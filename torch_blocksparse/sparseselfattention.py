@@ -19,7 +19,7 @@ class SparseSelfAttention(nn.Module):
                     trans_a=False,
                     trans_b=True)
 
-            sparse_dot_dsd_nn = MatMul(self.sparsity_configlayout,
+            sparse_dot_dsd_nn = MatMul(self.sparsity_config.layout,
                     self.sparsity_config.block,
                     'dsd',
                     trans_a=False,
