@@ -2,7 +2,7 @@ import torch.nn as nn
 from torch.nn.functional import *
 import torch
 from collections import namedtuple
-import torch_blocksparse
+from torch_blocksparse import MatMul, Softmax, SparsityConfig
 import sys
 import random
 
@@ -13,25 +13,25 @@ class SparseSelfAttention(nn.Module):
     def get_ops(self, H, L):
         import sys
         if L not in SparseSelfAttention.ops:
-            sparse_dot_sdd_nt = torch_blocksparse.MatMul(self.sparsity_config.layout,
+            sparse_dot_sdd_nt = MatMul(self.sparsity_config.layout,
                     self.sparsity_config.block,
                     'sdd',
                     trans_a=False,
                     trans_b=True)
 
-            sparse_dot_dsd_nn = torch_blocksparse.MatMul(self.sparsity_configlayout,
+            sparse_dot_dsd_nn = MatMul(self.sparsity_configlayout,
                     self.sparsity_config.block,
                     'dsd',
                     trans_a=False,
                     trans_b=False)
 
-            sparse_softmax = torch_blocksparse.Softmax(self.sparsity_config.layout, self.sparsity_config.block)
+            sparse_softmax = Softmax(self.sparsity_config.layout, self.sparsity_config.block)
 
             SparseSelfAttention.ops[L] = (sparse_dot_sdd_nt, sparse_dot_dsd_nn, sparse_softmax)
         return SparseSelfAttention.ops[L]
 
     # constructor
-    def __init__(self, sparsity_config=torch_blocksparse.SparsityConfig(), key_padding_mask_mode='add', attn_mask_mode='mul'):
+    def __init__(self, sparsity_config=SparsityConfig(), key_padding_mask_mode='add', attn_mask_mode='mul'):
         super().__init__()
 
         # sparsity information

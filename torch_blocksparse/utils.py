@@ -3,7 +3,7 @@ Copyright 2020 The Microsoft DeepSpeed Team
 """
 
 from torch import nn
-from deepspeed.pt.sparse_transformer import BertSparseSelfAttention, FixedSparsityConfig
+from torch_blocksparse import BertSparseSelfAttention, SparsityConfig
 '''
 This file contains few utility functions to handle adapting pretrained model with sparse self-attention module.
 '''
@@ -73,7 +73,7 @@ def update_tokenizer_model_max_length(tokenizer, max_position):
 
 def replace_model_self_attention_with_sparse_self_attention(model,
                                                             max_position,
-                                                            sparsity_config=None):
+                                                            sparsity_config=SparsityConfig()):
     """This function replaces the self attention layers in model encoder with sparse self attention.
     It currently supports bert and roberta model and can be easily extended to any other models following similar steps here.
     For sparsityConfig, refer to the config class. 
@@ -109,7 +109,7 @@ def replace_model_self_attention_with_sparse_self_attention(model,
 def replace_self_attention_layer_with_sparse_self_attention_layer(
     config,
     layers,
-    sparsity_config=FixedSparsityConfig()):
+    sparsity_config=SparsityConfig()):
     """This function replaces the self attention layers in attention layer with sparse self attention.
     For sparsityConfig, refer to the config class.
    

@@ -1,10 +1,10 @@
+from .sparsityconfig import SparsityConfig, DenseSparsityConfig, FixedSparsityConfig, BigBirdSparsityConfig
 from .softmax import Softmax
 from .matmul import MatMul, Linear
 from .conv import _sparse_conv2d, Conv2d
 from .attention import MultiheadAttention
 from .sparseselfattention import SparseSelfAttention
 from .bertsparseselfattention import BertSparseSelfAttention
-from .sparsityconfig import SparsityConfig, DenseSparsityConfig, FixedSparsityConfig, BigBirdSparsityConfig
 from .batchnorm import BatchNorm2d
 from .permute import _permute, Permute
 from .relu import ReLU

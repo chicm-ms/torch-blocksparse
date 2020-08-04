@@ -1,10 +1,5 @@
-import torch.nn as nn
-from torch.nn.functional import *
 import torch
-from collections import namedtuple
-import sys
 import random
-
 
 class SparsityConfig:
     def __init__(self,
