@@ -3,7 +3,7 @@ Copyright 2020 The Microsoft DeepSpeed Team
 """
 
 from torch import nn
-from deepspeed.pt.sparse_transformer import DeepSpeedBertSparseSelfAttention, SparsityConfig
+from deepspeed.pt.sparse_transformer import BertSparseSelfAttention, FixedSparsityConfig
 '''
 This file contains few utility functions to handle adapting pretrained model with sparse self-attention module.
 '''
@@ -109,7 +109,7 @@ def replace_model_self_attention_with_sparse_self_attention(model,
 def replace_self_attention_layer_with_sparse_self_attention_layer(
     config,
     layers,
-    sparsity_config=None):
+    sparsity_config=FixedSparsityConfig()):
     """This function replaces the self attention layers in attention layer with sparse self attention.
     For sparsityConfig, refer to the config class.
    
@@ -123,7 +123,7 @@ def replace_self_attention_layer_with_sparse_self_attention_layer(
     """
 
     for layer in layers:
-        deepspeed_sparse_self_attn = DeepSpeedBertSparseSelfAttention(
+        deepspeed_sparse_self_attn = BertSparseSelfAttention(
             config,
             sparsity_config)
         deepspeed_sparse_self_attn.query = layer.attention.self.query
