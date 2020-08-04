@@ -12,7 +12,7 @@ class SparseSelfAttention(nn.Module):
     # add to cache
     def get_ops(self, H, L):
         import sys
-        if L not in DeepSpeedSparseSelfAttention.ops:
+        if L not in SparseSelfAttention.ops:
             sparse_dot_sdd_nt = torch_blocksparse.MatMul(self.sparsity_config.layout,
                     self.sparsity_config.block,
                     'sdd',
@@ -27,8 +27,8 @@ class SparseSelfAttention(nn.Module):
 
             sparse_softmax = torch_blocksparse.Softmax(self.sparsity_config.layout, self.sparsity_config.block)
 
-            DeepSpeedSparseSelfAttention.ops[L] = (sparse_dot_sdd_nt, sparse_dot_dsd_nn, sparse_softmax)
-        return DeepSpeedSparseSelfAttention.ops[L]
+            SparseSelfAttention.ops[L] = (sparse_dot_sdd_nt, sparse_dot_dsd_nn, sparse_softmax)
+        return SparseSelfAttention.ops[L]
 
     # constructor
     def __init__(self, sparsity_config=torch_blocksparse.SparsityConfig(), key_padding_mask_mode='add', attn_mask_mode='mul'):
