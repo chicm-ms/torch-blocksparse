@@ -190,7 +190,11 @@ class FixedSparsityConfig(SparsityConfig):
 
 class VariableSparsityConfig(SparsityConfig):
     """Configuration class to store `Variable` sparsity configuration.
-    This layout is an extension of FixedSparsityConfig in which user can provide a list of local block sizes + global block indices.
+    This layout is an extension of FixedSparsityConfig in which:
+      - user can set random layout; default value is zero means no random block
+      - user can provide a list of local block sizes
+      - user can provide a list of global block indices.
+
     For more details about `Fixed` sparsity config, please see `Generative Modeling with Sparse Transformers`: https://arxiv.org/abs/1904.10509; this has been customized.
     This class extends parent class of `SparsityConfig` and customizes it for `Fixed` sparsity.
     """
@@ -199,6 +203,7 @@ class VariableSparsityConfig(SparsityConfig):
                  seq_len,
                  block=16,
                  different_layout_per_head=False,
+                 num_random_blocks=0,
                  local_window_blocks=[4],
                  global_block_indices=[0],
                  global_block_end_indices=None,
@@ -213,6 +218,7 @@ class VariableSparsityConfig(SparsityConfig):
              seq_len: required: an integer determining number of attention heads of the layer.
              block: optional: an integer determining the block size. Current implementation of sparse self-attention is based on blocked sparse matrices. In which this parameter defines size of such blocks, `Block X Block`.
              different_layout_per_head: optional: a boolean determining if each head should be assigned a different sparsity layout; default is false and this will be satisfied based on availability. Currently this sparsity config can only assign single layout to all heads; needs to be extended for different layout per head.
+             num_random_blocks: optional: an integer determining the number of random blocks in each block row.
              local_window_blocks: optional: a list of integers determining the number of blocks in each local attention window. It assumes first number determines # of blocks in the first local window, second the second window, ..., and the last number determines the number of blocks in the remaining local windows.
              global_block_indices: optional: a list of integers determining which blocks are considered as global attention. Given indices, determine the blocks that all other token blocks attend to and they attend to all other token blocks. Default value is only index 0. Notice that if global_block_end_indices parameter is set, this parameter is used as starting index of each global window.
              global_block_end_indices: optional: a list of integers determining end indices of global window blocks. By default this is not used. But if it is set, it must have the same size of global_block_indices parameter, and combining this two parameters, for each index i, blocks from global_block_indices[i] to global_block_end_indices[i] (exclusive) are considered as global attention.
@@ -268,6 +274,18 @@ class VariableSparsityConfig(SparsityConfig):
             )
         self.horizental_global_attention = horizental_global_attention
         self.make_layout()
+
+    def set_random_layout(self, h):
+        """Sets random attantion layout used by the given head in the sparse attention.
+        Note) By default, it assumes there will be a unique random block layout for all heads; unless `different_layout_per_head` parameter is set in which each head can have a different random layout.
+
+        Arguments:
+             h: required: an integer determining head index
+        """
+
+        for row in range(0, self.num_blocks):
+            rnd_cols = random.sample(range(0, self.num_blocks), self.num_random_blocks)
+            self.layout[h, row, rnd_cols] = 1
 
     def set_local_layout(self, h):
         """Sets local attantion layout used by the given head in the sparse attention.
@@ -327,6 +345,7 @@ class VariableSparsityConfig(SparsityConfig):
         """
 
         for h in range(0, self.num_layout_heads):
+            self.set_random_layout(h)
             self.set_local_layout(h)
             self.set_global_layout(h)
 
@@ -356,7 +375,6 @@ class BigBirdSparsityConfig(SparsityConfig):
              seq_len: required: an integer determining number of attention heads of the layer.
              block: optional: an integer determining the block size. Current implementation of sparse self-attention is based on blocked sparse matrices. In which this parameter defines size of such blocks, `Block X Block`.
              different_layout_per_head: optional: a boolean determining if each head should be assigned a different sparsity layout; default is false and this will be satisfied based on availability.
-
              num_random_blocks: optional: an integer determining the number of random blocks in each block row.
              num_sliding_window_blocks: optional: an integer determining the number of blocks in sliding local attention window.
              num_global_blocks: optional: an integer determining how many consecutive blocks, starting from index 0, are considered as global attention. Global block tokens will be attended by all other block tokens and will attend to all other block tokens as well.
