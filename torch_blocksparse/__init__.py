@@ -1,4 +1,4 @@
-from .sparsityconfig import SparsityConfig, DenseSparsityConfig, FixedSparsityConfig, BigBirdSparsityConfig
+from .sparsityconfig import SparsityConfig, DenseSparsityConfig, FixedSparsityConfig, VariableSparsityConfig, BigBirdSparsityConfig, BSLongformerSparsityConfig
 from .softmax import Softmax
 from .matmul import MatMul, Linear
 from .conv import _sparse_conv2d, Conv2d

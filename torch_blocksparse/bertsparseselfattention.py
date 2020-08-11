@@ -13,13 +13,19 @@ class BertSparseSelfAttention(nn.Module):
 
     For usage example please see, TODO DeepSpeed Sparse Transformer Tutorial.
     """
-    def __init__(self,
-                 config,
-                 sparsity_config=FixedSparsityConfig()):
+    def __init__(
+        self,
+        config,
+        # SparsityConfig parameters needs to be set accordingly
+        sparsity_config=FixedSparsityConfig(num_heads=4,
+                                            seq_len=1024)):
         """Initialize the bert sparse self attention layer.
+
+        Note) you can use any of the provided sparsity configs or simply add yours!
+
         Arguments:
             config: required: Bert model config
-            sparsity_config: optional: this parameter determins sparsity pattern configuration; it is based on SparsityConfig class.
+            sparsity_config: optional: this parameter determins sparsity pattern configuration; it is based on FixedSparsityConfig class.
         """
 
         super(BertSparseSelfAttention, self).__init__()
