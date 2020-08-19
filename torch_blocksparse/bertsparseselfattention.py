@@ -50,7 +50,7 @@ class BertSparseSelfAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, hidden_states, attention_mask):
+    def forward(self, hidden_states, attention_mask=None, head_mask=None,encoder_hidden_states=None, encoder_attention_mask=None, output_attentions=False):
         """Applies forward phase of bert sparse self attention
 
         Arguments:
@@ -61,19 +61,26 @@ class BertSparseSelfAttention(nn.Module):
              context_layer: a dense tensor containing attnetion context
         """
         mixed_query_layer = self.query(hidden_states)
-        mixed_key_layer = self.key(hidden_states)
-        mixed_value_layer = self.value(hidden_states)
+
+        if encoder_hidden_states is not None:
+            mixed_key_layer = self.key(encoder_hidden_states)
+            mixed_value_layer = self.value(encoder_hidden_states)
+            attention_mask = encoder_attention_mask
+        else:
+            mixed_key_layer = self.key(hidden_states)
+            mixed_value_layer = self.value(hidden_states)
 
         query_layer = self.transpose_for_scores(mixed_query_layer)
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
-
+        print("execute BertSparseSelfAttention!!!!!!!!!!!!!!!!!!!!")
         context_layer = self.sparse_self_attention(query_layer,
                                                    key_layer,
                                                    value_layer,
                                                    key_padding_mask=attention_mask)
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        print("BertSparseSelfAttention: ", context_layer.size())
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size, )
         context_layer = context_layer.view(*new_context_layer_shape)
-        return context_layer
+        return (context_layer,)
