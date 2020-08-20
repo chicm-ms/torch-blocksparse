@@ -224,7 +224,7 @@ class _sparse_matmul(torch.autograd.Function):
     # heuristics taken from OpenAI blocksparse code
     # https://github.com/openai/blocksparse/blob/master/blocksparse/matmul.py#L95
     max_size = sizes.max()
-    min_size = sizes[sizes != 0].min()
+    # min_size = sizes[sizes != 0].min()
     #if max_size > min_size * 2.0:
     #  seg_max = max(triton.cdiv(max_size, 4), min_size*2)
     #else:

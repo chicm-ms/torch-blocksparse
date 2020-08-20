@@ -128,6 +128,9 @@ class SparseSelfAttention(nn.Module):
         scaling = float(head_dim)**-0.5
 
         # attention scores
+        print("Attention query: ", query.size())
+        print("Attention key: ", key.size())
+        print("sparse_dot_sdd_nt: ", sparse_dot_sdd_nt.layout, sparse_dot_sdd_nt.layout.size())
         attn_output_weights = sparse_dot_sdd_nt(query, key)
         attn_output_weights = sparse_softmax(
             attn_output_weights,
