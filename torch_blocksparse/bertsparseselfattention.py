@@ -73,14 +73,12 @@ class BertSparseSelfAttention(nn.Module):
         query_layer = self.transpose_for_scores(mixed_query_layer)
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
-        print("execute BertSparseSelfAttention!!!!!!!!!!!!!!!!!!!!")
         context_layer = self.sparse_self_attention(query_layer,
                                                    key_layer,
                                                    value_layer,
                                                    key_padding_mask=attention_mask)
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        print("BertSparseSelfAttention: ", context_layer.size())
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size, )
         context_layer = context_layer.view(*new_context_layer_shape)
         return (context_layer,)
