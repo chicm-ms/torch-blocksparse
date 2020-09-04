@@ -227,7 +227,7 @@ class VariableSparsityConfig(SparsityConfig):
              horizental_global_attention: optional: a boolean determining if blocks that are global representative of a local window, also attend to all other blocks. This is valid only if attention type is `bidirectional`. Looking at the attention matrix, that means global attention not only includes the vertical blocks, but aso horizental blocks.
         """
         super().__init__(num_heads, seq_len, block, different_layout_per_head)
-
+        self.num_random_blocks = num_random_blocks
         all_local_blocks = 0
         for local_blocks in local_window_blocks:
             all_local_blocks += local_blocks
